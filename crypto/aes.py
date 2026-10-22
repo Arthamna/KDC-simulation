@@ -95,3 +95,41 @@ def encrypt_block(plaintext: bytes, key: bytes) -> bytes:
     _shift_rows(state)
     _add_round_key(state, round_keys[10])
     return bytes(state)
+
+
+def _inv_shift_rows(state: list[int]) -> None:
+    for row in range(1, 4):
+        values = [state[row + 4 * col] for col in range(4)]
+        values = values[-row:] + values[:-row]
+        for col, value in enumerate(values):
+            state[row + 4 * col] = value
+
+
+def _inv_mix_columns(state: list[int]) -> None:
+    for col in range(4):
+        i = col * 4
+        a, b, c, d = state[i:i + 4]
+        state[i:i + 4] = [
+            gf_mul(a, 14) ^ gf_mul(b, 11) ^ gf_mul(c, 13) ^ gf_mul(d, 9),
+            gf_mul(a, 9) ^ gf_mul(b, 14) ^ gf_mul(c, 11) ^ gf_mul(d, 13),
+            gf_mul(a, 13) ^ gf_mul(b, 9) ^ gf_mul(c, 14) ^ gf_mul(d, 11),
+            gf_mul(a, 11) ^ gf_mul(b, 13) ^ gf_mul(c, 9) ^ gf_mul(d, 14),
+        ]
+
+
+def decrypt_block(ciphertext: bytes, key: bytes) -> bytes:
+    """Decrypt a single 16-byte block using AES-128."""
+    if len(ciphertext) != 16:
+        raise ValueError("AES block must be exactly 16 bytes")
+    round_keys = expand_key(key)
+    state = list(ciphertext)
+    _add_round_key(state, round_keys[10])
+    for round_ in range(9, 0, -1):
+        _inv_shift_rows(state)
+        state = [INV_SBOX[x] for x in state]
+        _add_round_key(state, round_keys[round_])
+        _inv_mix_columns(state)
+    _inv_shift_rows(state)
+    state = [INV_SBOX[x] for x in state]
+    _add_round_key(state, round_keys[0])
+    return bytes(state)
