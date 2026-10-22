@@ -18,11 +18,12 @@ def _rot(value: int, n: int) -> int:
 def _inverse(value: int) -> int:
     if value == 0:
         return 0
-    result, power = 1, value
-    for bit in (128, 64, 32, 16, 8, 4, 2, 1):
-        if 254 & bit:
+    result, power, exponent = 1, value, 254
+    while exponent:
+        if exponent & 1:
             result = gf_mul(result, power)
         power = gf_mul(power, power)
+        exponent >>= 1
     return result
 
 
@@ -51,3 +52,46 @@ def expand_key(key: bytes) -> list[bytes]:
             rcon = gf_mul(rcon, 2)
         words.append([x ^ y for x, y in zip(words[i - 4], temp)])
     return [bytes(sum(words[4 * round_:4 * round_ + 4], [])) for round_ in range(11)]
+
+
+def _add_round_key(state: list[int], key: bytes) -> None:
+    for i, byte in enumerate(key):
+        state[i] ^= byte
+
+
+def _shift_rows(state: list[int]) -> None:
+    for row in range(1, 4):
+        values = [state[row + 4 * col] for col in range(4)]
+        values = values[row:] + values[:row]
+        for col, value in enumerate(values):
+            state[row + 4 * col] = value
+
+
+def _mix_columns(state: list[int]) -> None:
+    for col in range(4):
+        i = col * 4
+        a, b, c, d = state[i:i + 4]
+        state[i:i + 4] = [
+            gf_mul(a, 2) ^ gf_mul(b, 3) ^ c ^ d,
+            a ^ gf_mul(b, 2) ^ gf_mul(c, 3) ^ d,
+            a ^ b ^ gf_mul(c, 2) ^ gf_mul(d, 3),
+            gf_mul(a, 3) ^ b ^ c ^ gf_mul(d, 2),
+        ]
+
+
+def encrypt_block(plaintext: bytes, key: bytes) -> bytes:
+    """Encrypt a single 16-byte block using AES-128."""
+    if len(plaintext) != 16:
+        raise ValueError("AES block must be exactly 16 bytes")
+    round_keys = expand_key(key)
+    state = list(plaintext)
+    _add_round_key(state, round_keys[0])
+    for round_ in range(1, 10):
+        state = [SBOX[x] for x in state]
+        _shift_rows(state)
+        _mix_columns(state)
+        _add_round_key(state, round_keys[round_])
+    state = [SBOX[x] for x in state]
+    _shift_rows(state)
+    _add_round_key(state, round_keys[10])
+    return bytes(state)
