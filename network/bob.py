@@ -125,3 +125,35 @@ class BobNode:
         self.close_session()
         if self.server:
             self.server.close()
+
+def main():
+    parser = argparse.ArgumentParser(description='Bob AES-CBC chat')
+    parser.add_argument('--host', required=True, help='Bob machine IP address')
+    parser.add_argument('--port', type=int, default=9001)
+    args = parser.parse_args()
+
+    bob = BobNode(args.host, args.port, input('Bob master key (16 ASCII chars): '))
+    bob.start()
+    try:
+        while True:
+            print('\nBob: 1=Change master key  2=Send chat  3=End session  4=Session status  0=Exit')
+            choice = input('> ').strip()
+            if choice == '0':
+                break
+            try:
+                if choice == '1':
+                    bob.update_key(input('New Bob master key: '))
+                elif choice == '2':
+                    bob.send_chat(input('Message (ASCII): '))
+                elif choice == '3':
+                    bob.close_session()
+                elif choice == '4':
+                    print('Authenticated' if bob.session_key else 'No active session')
+            except (OSError, ValueError, UnicodeError) as exc:
+                print(f'Error: {exc}')
+    finally:
+        bob.stop()
+
+
+if __name__ == '__main__':
+    main()

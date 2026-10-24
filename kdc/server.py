@@ -59,3 +59,34 @@ class KDCServer:
         self.active = False
         if self.server:
             self.server.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Manual AES-CBC KDC')
+    parser.add_argument('--host', required=True, help='IP address of this KDC machine')
+    parser.add_argument('--port', type=int, default=9000)
+    args = parser.parse_args()
+
+    ka = input('Alice master key (16 ASCII chars): ')
+    kb = input('Bob master key (16 ASCII chars): ')
+    kdc = KDCServer(args.host, args.port, ka, kb)
+    kdc.start()
+    try:
+        while True:
+            print('\nKDC: 1=Change Alice key  2=Change Bob key  0=Exit')
+            choice = input('> ').strip()
+            if choice == '0':
+                break
+            try:
+                if choice == '1':
+                    kdc.update_key('Alice', input('New Alice key: '))
+                elif choice == '2':
+                    kdc.update_key('Bob', input('New Bob key: '))
+            except (ValueError, UnicodeError) as exc:
+                print(f'Error: {exc}')
+    finally:
+        kdc.stop()
+
+
+if __name__ == '__main__':
+    main()

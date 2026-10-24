@@ -92,3 +92,40 @@ class AliceNode:
             except OSError:
                 pass
             peer.close()
+
+def main():
+    parser = argparse.ArgumentParser(description='Alice AES-CBC chat')
+    parser.add_argument('--host', required=True, help='Alice machine IP address (source bind)')
+    parser.add_argument('--kdc-host', required=True)
+    parser.add_argument('--kdc-port', type=int, default=9000)
+    parser.add_argument('--bob-host', required=True)
+    parser.add_argument('--bob-port', type=int, default=9001)
+    args = parser.parse_args()
+
+    alice = AliceNode(args.host, input('Alice master key (16 ASCII chars): '))
+    try:
+        while True:
+            print('\nAlice: 1=Change key  2=Change endpoints  3=Start/Rekey session  4=Send chat  5=End session  0=Exit')
+            choice = input('> ').strip()
+            if choice == '0':
+                break
+            try:
+                if choice == '1':
+                    alice.update_key(input('New Alice master key: '))
+                elif choice == '2':
+                    args.kdc_host = input(f'KDC IP [{args.kdc_host}]: ') or args.kdc_host
+                    args.bob_host = input(f'Bob IP [{args.bob_host}]: ') or args.bob_host
+                elif choice == '3':
+                    alice.handshake(args.kdc_host, args.kdc_port, args.bob_host, args.bob_port)
+                elif choice == '4':
+                    alice.send_chat(input('Message (ASCII): '))
+                elif choice == '5':
+                    alice.close_session()
+            except (OSError, ValueError, KeyError, EOFError, UnicodeError) as exc:
+                print(f'Error: {exc}')
+    finally:
+        alice.close_session()
+
+
+if __name__ == '__main__':
+    main()
